@@ -1,0 +1,54 @@
+version: '3'
+
+services:
+  django:
+    build: .
+    container_name: django
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./backend:/app   # Map the backend folder to /app inside the container
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    environment:
+      - DEBUG=1
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+
+  celery:
+    build: .
+    command: celery -A backend worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    networks:
+      - backend
+    env_file:
+      - .env
+
+  redis:
+    image: redis:alpine
+    ports:
+      - '6379:6379'
+    networks:
+      - backend
+  
+  frontend:
+    build:
+      context: ./dentalfe  # Path to the React Dockerfile
+    container_name: react
+    volumes:
+      - ./dentalfe:/app
+    ports:
+      - "3000:3000"
+    environment:
+      - CHOKIDAR_USEPOLLING=true  # Fix for file watching on Docker
+    stdin_open: true
+    tty: true
+
+networks:
+  backend:
+    driver: bridge
